@@ -14,11 +14,20 @@ ansi_std="\033[m";
 ansi_rev="\033[7m";
 ansi_ul="\033[4m";
 
+getProcPid() {
+  for i in `pidof $PROC`; do
+    readlink -f /proc/$i/exe | grep -q "entware"
+    if [ $? -eq 0  ]; then
+      echo -n "$i "
+    fi
+  done
+}
+
 start() {
     [ "$CRITICAL" != "yes" -a "$CALLER" = "cron" ] && return 7
         [ "$ENABLED" != "yes" ] && return 8
     echo -e -n "$ansi_white Starting $DESC... "
-    if [ -n "`pidof $PROC`" ]; then
+    if [ -n "$(getProcPid)" ]; then
         echo -e "            $ansi_yellow already running. $ansi_std"
         return 0
     fi
@@ -27,13 +36,13 @@ start() {
     #echo $PREARGS $PROC $ARGS 
     COUNTER=0
     LIMIT=10
-    while [ -z "`pidof $PROC`" -a "$COUNTER" -le "$LIMIT" ]; do
+    while [ -z "$(getProcPid)" -a "$COUNTER" -le "$LIMIT" ]; do
         sleep 1s;
         COUNTER=`expr $COUNTER + 1`
     done
     $POSTCMD > /dev/null 2>&1
 
-    if [ -z "`pidof $PROC`" ]; then
+    if [ -z "$(getProcPid)" ]; then
         echo -e "            $ansi_red failed. $ansi_std"
         logger "Failed to start $DESC from $CALLER."
         return 255
@@ -48,10 +57,12 @@ stop() {
     case "$ACTION" in
         stop | restart)
             echo -e -n "$ansi_white Shutting down $PROC... "
-            killall $PROC 2>/dev/null
+            for procpid in $(getProcPid); do
+              kill $procpid 2>/dev/null
+            done
             COUNTER=0
             LIMIT=10
-            while [ -n "`pidof $PROC`" -a "$COUNTER" -le "$LIMIT" ]; do
+            while [ -n "$(getProcPid)" -a "$COUNTER" -le "$LIMIT" ]; do
                 sleep 1s;
                 COUNTER=`expr $COUNTER + 1`
             done
@@ -62,7 +73,7 @@ stop() {
             ;;
     esac
 
-    if [ -n "`pidof $PROC`" ]; then
+    if [ -n "$(getProcPid)" ]; then
         echo -e "            $ansi_red failed. $ansi_std"
         return 255
     else
@@ -73,7 +84,7 @@ stop() {
 
 check() {
     echo -e -n "$ansi_white Checking $DESC... "
-    if [ -n "`pidof $PROC`" ]; then
+    if [ -n "$(getProcPid)" ]; then
         echo -e "            $ansi_green alive. $ansi_std";
         return 0
     else
