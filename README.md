@@ -1,0 +1,2 @@
+# rc.func
+rc.func
